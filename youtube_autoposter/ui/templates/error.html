@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} &middot; {{ app_name }}{% endblock %}
+
+{% block content %}
+<section class="panel">
+  <h1>{{ title }}</h1>
+  <div class="banner banner-err">{{ message }}</div>
+  <p>
+    Details stehen im Protokoll: <code>{{ settings.log_file_path }}</code>
+    bzw. unter <a href="{{ url_for('ui.logs_page') }}">Protokoll</a>.
+  </p>
+  <a class="btn btn-primary" href="{{ url_for('ui.dashboard') }}">Zur&uuml;ck zum Dashboard</a>
+</section>
+{% endblock %}

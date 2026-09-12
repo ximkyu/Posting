@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% block title %}{{ record.display_title }} &middot; {{ app_name }}{% endblock %}
+
+{% block content %}
+{% if not record %}
+  <div class="empty"><h2>Datensatz nicht gefunden</h2></div>
+{% else %}
+<section class="detail-head">
+  <img class="thumb thumb-lg" src="{{ url_for('ui.thumbnail', video_id=record.id) }}" alt="Thumbnail">
+  <div class="detail-head-main">
+    <h1>{{ record.display_title }}</h1>
+    <div class="muted">
+      Episode <code>{{ record.episode_id }}</code> &middot; Plattform {{ record.platform }} &middot;
+      angelegt {{ record.created_at_local }}
+    </div>
+    <div class="detail-status">
+      <span class="status status-{{ record.status|lower }}">{{ record.status_label }}</span>
+      {% if record.status in publishable %}
+        <span class="badge badge-private">Privat &ndash; bereit zur Ver&ouml;ffentlichung</span>
+      {% endif %}
+      {% if record.youtube_video_id %}
+        <code class="video-id">{{ record.youtube_video_id }}</code>
+        <a class="btn btn-ghost btn-sm" href="{{ record.youtube_watch_url }}" target="_blank" rel="noopener">YouTube &ouml;ffnen</a>
+      {% endif %}
+    </div>
+    {% if record.error_message %}
+      <div class="banner banner-err"><strong>Fehler:</strong> {{ record.error_message }}</div>
+    {% endif %}
+    {% if record.thumbnail_error %}
+      <div class="banner banner-warn"><strong>Thumbnail:</strong> {{ record.thumbnail_error }}</div>
+    {% endif %}
+  </div>
+  <div class="detail-actions">
+    {% if record.can_publish %}
+      <button type="button" class="btn btn-publish btn-lg" data-publish
+              data-video-id="{{ record.id }}"
+              data-title="{{ record.display_title }}"
+              data-video-yt="{{ record.youtube_video_id }}"
+              data-expected-status="{{ record.status }}">
+        VER&Ouml;FFENTLICHEN
+      </button>
+    {% elif record.is_published %}
+      <span class="btn btn-published btn-lg" aria-disabled="true">VER&Ouml;FFENTLICHT &#10003;</span>
+      <div class="small muted">public seit {{ record.published_at_local }}</div>
+    {% endif %}
+
+    {% if record.status == 'INTERRUPTED' %}
+      <form method="post" action="{{ url_for('ui.video_recover', video_id=record.id) }}" data-form>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button class="btn btn-primary" type="submit">Auf YouTube pr&uuml;fen (Crash-Wiederanlauf)</button>
+      </form>
+      <form method="post" action="{{ url_for('ui.video_retry', video_id=record.id) }}" data-form>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button class="btn btn-warn" type="submit">Erneut hochladen (neuer Upload!)</button>
+      </form>
+    {% elif record.can_retry %}
+      <form method="post" action="{{ url_for('ui.video_retry', video_id=record.id) }}" data-form>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button class="btn btn-warn" type="submit">ERNEUT VERSUCHEN</button>
+      </form>
+    {% endif %}
+
+    {% if record.youtube_video_id %}
+      <form method="post" action="{{ url_for('ui.video_check', video_id=record.id) }}" data-form>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button class="btn btn-ghost" type="submit">Status bei YouTube pr&uuml;fen (1 Einheit)</button>
+      </form>
+      <form method="post" action="{{ url_for('ui.video_thumbnail', video_id=record.id) }}" data-form>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button class="btn btn-ghost" type="submit">Thumbnail erneut setzen (~50 Einheiten)</button>
+      </form>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('ui.video_archive', video_id=record.id) }}" data-form>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button class="btn btn-ghost" type="submit">Archivieren</button>
+    </form>
+    <a class="btn btn-ghost" href="{{ url_for('ui.dashboard') }}">&larr; Zur&uuml;ck zum Dashboard</a>
+  </div>
+</section>
+
+<section class="panel-grid">
+  <div class="panel">
+    <h2>Video (technische Pr&uuml;fung)</h2>
+    {% if media_info and media_info.probe_ok %}
+      <div class="kv"><span>Aufl&ouml;sung</span><strong>{{ record.resolution_text }}</strong></div>
+      <div class="kv"><span>Dauer</span><strong>{{ record.duration_text }}</strong></div>
+      <div class="kv"><span>Codec (Video/Audio)</span><strong>{{ record.codec_text }}</strong></div>
+      <div class="kv"><span>Framerate</span><strong>{{ '%.2f'|format(record.fps) if record.fps else '-' }} fps</strong></div>
+      <div class="kv"><span>Dateigr&ouml;&szlig;e</span><strong>{{ record.size_text }}</strong></div>
+      <div class="kv"><span>Audio vorhanden</span><strong>{{ 'ja' if record.has_audio else 'nein' }}</strong></div>
+      <div class="kv"><span>Container</span><strong>{{ media_info.get('container_format') or '-' }}</strong></div>
+      <div class="kv"><span>Analyse-Quelle</span><strong>{{ media_info.get('source') or '-' }}</strong></div>
+    {% else %}
+      <p class="muted">
+        Keine technische Analyse m&ouml;glich:
+        {{ (media_info or {}).get('probe_error') or 'ffprobe/ffmpeg nicht gefunden' }}
+      </p>
+    {% endif %}
+    <div class="kv"><span>Datei</span><strong class="small"><code>{{ record.video_path or '-' }}</code></strong></div>
+    <div class="kv"><span>SHA-256</span><strong class="small"><code>{{ record.file_hash or '-' }}</code></strong></div>
+  </div>
+
+  <div class="panel">
+    <h2>Metadaten</h2>
+    <div class="kv"><span>Titel</span><strong class="small">{{ record.title or '-' }}
+      <em class="muted">({{ (record.title or '')|length }}/100)</em></strong></div>
+    <div class="kv"><span>Beschreibung</span><strong class="small">{{ (record.description or '-')[:200] }}{% if record.description and record.description|length > 200 %}&hellip;{% endif %}
+      <em class="muted">({{ (record.description or '')|length }}/5000)</em></strong></div>
+    <div class="kv"><span>Tags</span><strong class="small">{% for tag in record.tags %}<span class="chip">{{ tag }}</span>{% else %}-{% endfor %}</strong></div>
+    <div class="kv"><span>Kategorie</span><strong>{{ record.category_id or '-' }}</strong></div>
+    <div class="kv"><span>Sprache</span><strong>{{ record.language or '-' }}</strong></div>
+    <div class="kv"><span>Playlist</span><strong>{{ (metadata or {}).get('playlist_id') or '-' }}</strong></div>
+    <div class="kv"><span>Made for kids</span><strong>{{ (metadata or {}).get('effective_made_for_kids') }}</strong></div>
+    <div class="kv"><span>Privacy (JSON-Wunsch)</span><strong>{{ record.privacy_status_requested or '-' }}</strong></div>
+    <div class="kv"><span>Privacy (tats&auml;chlich)</span><strong class="ok">{{ record.effective_privacy_status or 'private' }}</strong></div>
+    {% if record.publish_at_requested %}
+      <div class="kv"><span>publish_at (nur Info)</span><strong>{{ record.publish_at_requested }}</strong></div>
+    {% endif %}
+    <div class="kv"><span>JSON-Datei</span><strong class="small"><code>{{ record.metadata_path or '-' }}</code></strong></div>
+    <div class="kv"><span>Thumbnail-Datei</span><strong class="small"><code>{{ record.thumbnail_path or 'keins' }}</code></strong></div>
+    {% if thumbnail_info %}
+      <div class="kv"><span>Thumbnail-Pr&uuml;fung</span>
+        <strong class="{{ 'ok' if thumbnail_info.get('readable') else 'err' }}">
+          {{ thumbnail_info.get('format') or '?' }},
+          {{ thumbnail_info.get('width') or '?' }}x{{ thumbnail_info.get('height') or '?' }},
+          {{ human_size(thumbnail_info.get('size_bytes')) }}
+          {{ '' if thumbnail_info.get('readable') else '- ' ~ (thumbnail_info.get('error') or 'nicht lesbar') }}
+        </strong>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="panel">
+    <h2>YouTube</h2>
+    <div class="kv"><span>Video-ID</span><strong><code>{{ record.youtube_video_id or '-' }}</code></strong></div>
+    <div class="kv"><span>URL</span><strong class="small">
+      {% if record.youtube_watch_url %}<a href="{{ record.youtube_watch_url }}" target="_blank" rel="noopener">{{ record.youtube_watch_url }}</a>{% else %}-{% endif %}
+    </strong></div>
+    <div class="kv"><span>Kanal</span><strong>{{ record.channel_title or auth.channel_title or '-' }}</strong></div>
+    <div class="kv"><span>Upload gestartet</span><strong>{{ now_local(record.upload_started_at) }}</strong></div>
+    <div class="kv"><span>Upload fertig</span><strong>{{ record.upload_completed_at_local }}</strong></div>
+    <div class="kv"><span>Ver&ouml;ffentlicht</span><strong>{{ record.published_at_local }}</strong></div>
+    <div class="kv"><span>Thumbnail gesetzt</span><strong class="{{ 'ok' if record.thumbnail_set else 'muted' }}">{{ 'ja' if record.thumbnail_set else 'nein' }}</strong></div>
+    <div class="kv"><span>Archiv-Ordner</span><strong class="small">{{ record.folder_state or '-' }}</strong></div>
+    <div class="kv"><span>Ordner</span><strong class="small"><code>{{ record.archived_path or '-' }}</code></strong></div>
+    <div class="kv"><span>Versuche</span><strong>{{ record.retry_count or 0 }}</strong></div>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Pr&uuml;fergebnis</h2>
+  {% set issues = validation.get('issues') or [] %}
+  {% if issues %}
+    <ul class="issues">
+      {% for issue in issues %}
+        <li class="issue issue-{{ issue.level }}">
+          <span class="issue-level">{{ issue.level|upper }}</span>
+          <span>{{ issue.message }}</span>
+          {% if issue.field %}<code class="muted">{{ issue.field }}</code>{% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">Noch keine Pr&uuml;fung durchgef&uuml;hrt.</p>
+  {% endif %}
+</section>
+
+<section class="panel-grid">
+  <div class="panel">
+    <h2>Upload-Versuche (API-Aufrufe)</h2>
+    {% if attempts %}
+    <table class="table table-compact">
+      <thead><tr><th>#</th><th>Phase</th><th>Status</th><th>Start</th><th>Ende</th><th>Quota</th><th>Fehler</th></tr></thead>
+      <tbody>
+      {% for attempt in attempts %}
+        <tr>
+          <td>{{ attempt.attempt }}</td>
+          <td>{{ attempt.phase }}</td>
+          <td><span class="status status-{{ 'published' if attempt.status == 'SUCCEEDED' else 'failed' }}">{{ attempt.status }}</span></td>
+          <td class="small">{{ now_local(attempt.started_at) }}</td>
+          <td class="small">{{ now_local(attempt.finished_at) }}</td>
+          <td class="small">{{ attempt.quota_units or 0 }}</td>
+          <td class="small">{{ attempt.error_message or '-' }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p class="muted">Noch keine Versuche.</p>{% endif %}
+  </div>
+
+  <div class="panel">
+    <h2>Protokoll dieser Episode</h2>
+    {% if logs %}
+    <ul class="loglist">
+      {% for entry in logs[:60] %}
+        <li class="log-{{ entry.level|lower }}">
+          <span class="log-ts">{{ now_local(entry.ts) }}</span>
+          <span class="log-level">{{ entry.level }}</span>
+          <span class="log-msg">{{ entry.message }}</span>
+        </li>
+      {% endfor %}
+    </ul>
+    {% else %}<p class="muted">Keine Eintr&auml;ge.</p>{% endif %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,10 @@
+# Zusaetzliche Pakete nur fuer Entwicklung/Tests (nicht fuer den Betrieb noetig)
+-r requirements.txt
+
+pytest>=8.0
+pytest-cov>=5.0
+
+# Windows-only: DPAPI-Verschluesselung des OAuth-Tokens.
+# Auf Linux/macOS wird automatisch auf eine Datei mit beschraenkten
+# Zugriffsrechten (0600) zurueckgefallen.
+pywin32>=306 ; sys_platform == "win32"

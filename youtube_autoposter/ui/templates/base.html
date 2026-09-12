@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ app_name }}{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('ui.static', filename='style.css') }}">
+  <link rel="icon" href="{{ url_for('ui.static', filename='favicon.svg') }}" type="image/svg+xml">
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-left">
+    <a class="brand" href="{{ url_for('ui.dashboard') }}">
+      <span class="brand-mark">&#9654;</span>
+      <span class="brand-text">{{ app_name }}</span>
+      <span class="brand-sub">V{{ ctx.version }} &middot; lokal &middot; YouTube Data API v3</span>
+    </a>
+  </div>
+
+  <nav class="topnav">
+    <a href="{{ url_for('ui.dashboard') }}" class="{{ 'active' if active == 'dashboard' }}">Dashboard</a>
+    <a href="{{ url_for('ui.queue_page') }}" class="{{ 'active' if active == 'queue' }}">Warteschlange</a>
+    <a href="{{ url_for('ui.logs_page') }}" class="{{ 'active' if active == 'logs' }}">Protokoll</a>
+    <a href="{{ url_for('ui.setup_page') }}" class="{{ 'active' if active == 'setup' }}">Einrichtung</a>
+  </nav>
+
+  <div class="topbar-right">
+    {% if auth.connected %}
+      <span class="badge badge-ok" title="{{ auth.message }}">
+        YouTube: CONNECTED{% if auth.channel_title %} &middot; {{ auth.channel_title }}{% endif %}
+      </span>
+    {% else %}
+      <span class="badge badge-err" title="{{ auth.message }}">YouTube: NOT CONNECTED</span>
+    {% endif %}
+    {% if ctx.dry_run %}<span class="badge badge-warn">DRY RUN</span>{% endif %}
+    <form method="post" action="{{ url_for('ui.action_scan') }}" class="inline" data-form>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn btn-ghost">JETZT SCANNEN</button>
+    </form>
+    <form method="post" action="{{ url_for('ui.action_upload') }}" class="inline" data-form>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn btn-primary">UPLOAD AUSF&Uuml;HREN</button>
+    </form>
+  </div>
+</header>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div class="flashes">
+      {% for category, message in messages %}
+        <div class="flash flash-{{ category }}">{{ message }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}
+
+<main class="content">
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="footer">
+  <div>
+    <strong>READY-Ordner:</strong> <code>{{ settings.READY_FOLDER }}</code>
+  </div>
+  <div>
+    <strong>Datenbank:</strong> <code>{{ settings.DATABASE_PATH }}</code>
+    &middot; <strong>Log:</strong> <code>{{ settings.log_file_path }}</code>
+  </div>
+  <div class="footer-note">
+    Jeder Upload erfolgt <strong>privat</strong>. &Ouml;ffentlich wird ein Video ausschlie&szlig;lich
+    &uuml;ber den Button <strong>VER&Ouml;FFENTLICHEN</strong> mit Best&auml;tigung.
+  </div>
+</footer>
+
+<!-- Sicherheitsdialog: Standardfokus liegt auf ABBRECHEN -->
+<div class="modal-backdrop" id="publishModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="publishModalTitle" aria-describedby="publishModalText">
+    <h2 id="publishModalTitle">Video &ouml;ffentlich machen?</h2>
+    <p id="publishModalText" class="modal-warning">
+      Dieses Video wird jetzt &ouml;ffentlich auf YouTube gestellt.
+    </p>
+    <p class="modal-info" id="publishModalInfo"></p>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-secondary" id="publishCancel">ABBRECHEN</button>
+      <button type="button" class="btn btn-publish" id="publishConfirm">VER&Ouml;FFENTLICHEN</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-area" id="toastArea" aria-live="polite"></div>
+
+<script>
+  window.APP_CONFIG = {
+    csrfToken: "{{ csrf_token }}",
+    autoRefreshSeconds: {{ settings.AUTO_REFRESH_SECONDS or 5 }},
+    statusUrl: "{{ url_for('ui.api_status') }}",
+    healthUrl: "{{ url_for('ui.health') }}"
+  };
+</script>
+<script src="{{ url_for('ui.static', filename='app.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+{% block title %}Einrichtung &middot; {{ app_name }}{% endblock %}
+
+{% block content %}
+<section class="panel">
+  <h1>Einrichtung</h1>
+  <p class="muted">
+    Diese Seite zeigt den aktuellen Zustand der Google-Anbindung und f&uuml;hrt Schritt f&uuml;r Schritt
+    durch die einmalige Einrichtung. Alles bleibt lokal auf diesem Rechner.
+  </p>
+
+  <div class="status-cards">
+    <div class="status-card {{ 'ok' if auth.client_secrets_present else 'err' }}">
+      <h3>credentials.json</h3>
+      <p class="{{ 'ok' if auth.client_secrets_present else 'err' }}">
+        {{ 'vorhanden' if auth.client_secrets_present else 'fehlt' }}
+      </p>
+      <code class="small">{{ config_description.CLIENT_SECRETS_FILE }}</code>
+    </div>
+    <div class="status-card {{ 'ok' if auth.token_present else 'warn' }}">
+      <h3>OAuth-Token</h3>
+      <p class="{{ 'ok' if auth.connected else 'warn' }}">
+        {% if auth.connected %}gespeichert &amp; g&uuml;ltig
+        {% elif auth.token_present %}gespeichert, aber {{ auth.state.value }}
+        {% else %}noch keine Verbindung{% endif %}
+      </p>
+      <code class="small">Speicher: {{ auth.token_storage }} ({{ config_description.TOKEN_STORAGE }})</code>
+    </div>
+    <div class="status-card {{ 'ok' if auth.connected else 'err' }}">
+      <h3>YouTube-Verbindung</h3>
+      <p class="{{ 'ok' if auth.connected else 'err' }}">{{ 'CONNECTED' if auth.connected else 'NOT CONNECTED' }}</p>
+      <span class="small muted">{{ auth.channel_title or auth.message }}</span>
+    </div>
+  </div>
+
+  <div class="actions actions-lg">
+    {% if not auth.connected %}
+      <a class="btn btn-primary btn-lg" href="{{ url_for('ui.auth_start') }}">
+        Google-/YouTube-Konto einmalig verbinden
+      </a>
+    {% else %}
+      <a class="btn btn-ghost" href="{{ url_for('ui.auth_start') }}">Erneut verbinden (z.&nbsp;B. andere Scopes)</a>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('ui.auth_test') }}" class="inline" data-form>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button class="btn btn-primary" type="submit">Verbindung testen</button>
+    </form>
+
+    {% if auth.token_present %}
+      <form method="post" action="{{ url_for('ui.auth_disconnect') }}" class="inline" data-confirm="Verbindung wirklich trennen? Das lokale Token wird geloescht." data-form>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button class="btn btn-warn" type="submit">Verbindung trennen (Token l&ouml;schen)</button>
+      </form>
+    {% endif %}
+  </div>
+
+  {% if auth.last_error %}
+    <div class="banner banner-err"><strong>Letzter Fehler:</strong> {{ auth.last_error }}</div>
+  {% endif %}
+  {% if auth.state.value == 'NEEDS_REAUTH' %}
+    <div class="banner banner-warn">
+      <strong>Erneute Google-Autorisierung erforderlich.</strong> {{ auth.message }}
+    </div>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <h2>Google Cloud &mdash; Schritt f&uuml;r Schritt (einmalig, ca. 10 Minuten)</h2>
+  <ol class="steps">
+    <li>
+      <strong>Google Cloud Projekt erstellen</strong>
+      <p>
+        <a href="https://console.cloud.google.com/projectcreate" target="_blank" rel="noopener">console.cloud.google.com/projectcreate</a>
+        &rarr; Projektname z.&nbsp;B. <code>youtube-autoposter</code> &rarr; <em>Erstellen</em>.
+        Anschlie&szlig;end oben in der Leiste dieses Projekt ausw&auml;hlen.
+      </p>
+    </li>
+    <li>
+      <strong>YouTube Data API v3 aktivieren</strong>
+      <p>
+        Men&uuml; &rarr; <em>APIs &amp; Dienste</em> &rarr; <em>Bibliothek</em> &rarr;
+        <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener">YouTube Data API v3</a>
+        &rarr; <em>Aktivieren</em>.
+      </p>
+    </li>
+    <li>
+      <strong>OAuth-Zustimmungsbildschirm einrichten</strong>
+      <p>
+        Men&uuml; &rarr; <em>APIs &amp; Dienste</em> &rarr; <strong>Google Auth Platform</strong>
+        (in &auml;lteren Konsolen: <em>OAuth-Zustimmungsbildschirm</em>).
+      </p>
+      <ul>
+        <li>Beim ersten Mal: <em>Get started</em> / <em>Loslegen</em>.</li>
+        <li>App-Name: <code>YouTube AutoPoster</code>, Support-E-Mail und Entwickler-E-Mail: deine eigene Adresse.</li>
+        <li><strong>User type: External</strong> (f&uuml;r ein normales Google-Konto).</li>
+        <li>Scopes: nichts zwingend n&ouml;tig &mdash; die App fragt den Scope
+          <code>{{ scopes|join(', ') }}</code> beim Login selbst ab.</li>
+        <li>Audience &rarr; <strong>Publishing status: Testing</strong> &rarr;
+          <em>Add users</em> &rarr; <strong>deine eigene Google-Adresse eintragen</strong>
+          (sonst erscheint beim Login &ldquo;Zugriff verweigert&rdquo;).</li>
+      </ul>
+    </li>
+    <li>
+      <strong>OAuth-Client erstellen &mdash; Typ: <span class="ok">Desktop-App</span></strong>
+      <p>
+        <em>Google Auth Platform</em> &rarr; <em>Clients</em> (bzw. <em>APIs &amp; Dienste &rarr; Anmeldedaten</em>)
+        &rarr; <em>Client erstellen</em> / <em>Create credentials &rarr; OAuth client ID</em>:
+      </p>
+      <ul>
+        <li><strong>Anwendungstyp: Desktop-App</strong> (englisch <em>Desktop app</em>) &mdash; genau dieser Typ ist f&uuml;r
+          dieses Projekt richtig. Er erlaubt den lokalen Redirect auf
+          <code>{{ redirect_uri }}</code>, ohne dass du ihn eintragen musst.</li>
+        <li>Falls du stattdessen <em>Webanwendung</em> w&auml;hlst, musst du unter
+          <em>Autorisierte Redirect-URIs</em> exakt <code>{{ redirect_uri }}</code> hinterlegen.</li>
+      </ul>
+    </li>
+    <li>
+      <strong>credentials.json herunterladen und ablegen</strong>
+      <p>
+        Beim neuen Client: <em>JSON herunterladen</em>. Die Datei umbenennen in
+        <code>credentials.json</code> und hier ablegen:
+      </p>
+      <pre><code>{{ settings.CREDENTIALS_DIR }}\credentials.json</code></pre>
+      <p class="muted">
+        Vollst&auml;ndiger Pfad: <code>{{ config_description.CLIENT_SECRETS_FILE }}</code> relativ zum Projektordner
+        bzw. <code>&lt;Projekt&gt;\credentials\credentials.json</code>.
+        Die Datei steht in <code>.gitignore</code> und wird niemals versioniert.
+      </p>
+    </li>
+    <li>
+      <strong>Programm starten</strong>
+      <p>Doppelklick auf <code>start.bat</code> (bzw. <code>./start.sh</code>).</p>
+    </li>
+    <li>
+      <strong>YouTube-Konto autorisieren</strong>
+      <p>
+        Dashboard &rarr; <a href="{{ url_for('ui.auth_start') }}">Google-/YouTube-Konto einmalig verbinden</a>
+        &rarr; Browser &rarr; Google-Konto w&auml;hlen &rarr; bei
+        &ldquo;Google hat diese App nicht &uuml;berpr&uuml;ft&rdquo; auf <em>Erweitert</em> &rarr;
+        <em>Weiter zu YouTube AutoPoster (nicht sicher)</em> &rarr; <em>Zulassen</em>.
+      </p>
+      <p class="muted">
+        Danach liegt das Token lokal (unter Windows DPAPI-verschl&uuml;sselt). Ein Passwort wird nie gespeichert,
+        abgelaufene Access-Tokens erneuert die App automatisch &uuml;ber das Refresh-Token.
+      </p>
+    </li>
+    <li>
+      <strong>Fertig &mdash; READY-Ordner verwenden</strong>
+      <p>Video + JSON (+ optional Thumbnail) in <code>{{ config_description.READY_FOLDER }}</code> legen.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="panel">
+  <h2>Wichtig: private Videos &amp; API-Audit</h2>
+  <p>
+    Dieses System l&auml;dt <strong>immer privat</strong> hoch &mdash; das ist Absicht und harte Regel.
+    Zus&auml;tzlich gilt eine YouTube-Richtlinie, die du kennen solltest:
+  </p>
+  <div class="banner banner-warn">
+    <p>
+      Alle Videos, die &uuml;ber <code>videos.insert</code> aus <strong>nicht &uuml;berpr&uuml;ften
+      API-Projekten</strong> hochgeladen werden, die <strong>nach dem 28.07.2020</strong> erstellt wurden,
+      bleiben von YouTube <strong>privat gesperrt</strong>. Der Button
+      <em>VER&Ouml;FFENTLICHEN</em> liefert dann einen Fehler (z.&nbsp;B.
+      <code>forbiddenPrivacySetting</code> / &ldquo;restricted to private viewing mode&rdquo;).
+    </p>
+    <p>
+      L&ouml;sung: das Projekt einmalig von YouTube auditieren lassen &mdash;
+      <a href="https://support.google.com/youtube/contact/yt_api_form" target="_blank" rel="noopener">
+        YouTube API Services &ndash; Audit- und Quota-Formular</a>.
+      Das Formular wird auch f&uuml;r mehr Tageskontingent benutzt. Nach der Freigabe funktioniert
+      <em>VER&Ouml;FFENTLICHEN</em> wie vorgesehen.
+    </p>
+    <p class="muted">
+      Bis dahin bleiben deine Uploads privat &mdash; du kannst sie jederzeit im YouTube Studio manuell
+      &ouml;ffentlich schalten. Das System zeigt diesen Fall klar als Fehlermeldung an.
+    </p>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Verwendete API-Aufrufe &amp; Quota</h2>
+  <p class="muted">
+    Das Dashboard erzeugt <strong>keine</strong> YouTube-Aufrufe &mdash; alle Anzeigen kommen aus der lokalen
+    Datenbank. Quota wird nur bei diesen Aktionen verbraucht:
+  </p>
+  <table class="table table-compact">
+    <thead><tr><th>Aktion im System</th><th>API-Methode</th><th>Quota</th><th>Wann</th></tr></thead>
+    <tbody>
+      <tr><td>Verbindung testen / Login</td><td><code>channels.list</code></td><td>1 Einheit</td><td>manuell oder nach dem Login</td></tr>
+      <tr><td>Upload</td><td><code>videos.insert</code></td><td>1 Aufruf im Bucket &ldquo;Video Uploads&rdquo; (max. 100/Tag)</td><td>pro Episode</td></tr>
+      <tr><td>Thumbnail setzen</td><td><code>thumbnails.set</code></td><td>~50 Einheiten</td><td>pro Episode mit Thumbnail</td></tr>
+      <tr><td>VER&Ouml;FFENTLICHEN</td><td><code>videos.update</code></td><td>50 Einheiten</td><td>nur per Button</td></tr>
+      <tr><td>Status pr&uuml;fen</td><td><code>videos.list</code></td><td>1 Einheit</td><td>nur per Button</td></tr>
+      <tr><td>Upload-Abgleich nach Crash</td><td><code>playlistItems.list</code> + <code>videos.list</code></td><td>2&ndash;3 Einheiten</td><td>nur per Button</td></tr>
+      <tr><td>Kategorie pr&uuml;fen</td><td><code>videoCategories.list</code></td><td>1 Einheit</td><td>einmal pro Sprache (7 Tage gecacht)</td></tr>
+    </tbody>
+  </table>
+  {% for info in platform_infos %}
+    {% if info.quota_today %}
+      <div class="kv"><span>Uploads heute</span><strong>{{ info.quota_today.get('uploads', 0) }} / {{ info.quota_today.get('upload_limit_per_day', 100) }}</strong></div>
+      <div class="kv"><span>Quota-Einheiten heute</span><strong>{{ info.quota_today.get('units', 0) }}</strong></div>
+      <div class="kv"><span>Aufrufe heute</span><strong class="small">{{ info.quota_today.get('calls', {}) }}</strong></div>
+    {% endif %}
+  {% endfor %}
+</section>
+
+<section class="panel">
+  <h2>Konfiguration &amp; Pfade</h2>
+  <table class="table table-compact">
+    <tbody>
+      {% for key, value in config_description.items() %}
+        <tr><th>{{ key }}</th><td><code>{{ value }}</code></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted">
+    &Auml;ndern: <code>config.json</code> im Projektordner bearbeiten und die Anwendung neu starten.
+    Einzelne Werte lassen sich auch per Umgebungsvariable &uuml;berschreiben (Praefix <code>YAP_</code>,
+    z.&nbsp;B. <code>set YAP_PORT=9000</code>).
+    Den READY-Ordner &auml;nderst du mit <code>READY_FOLDER</code> &mdash; absolute Pfade sind erlaubt.
+  </p>
+</section>
+
+<section class="panel">
+  <h2>Datenbank</h2>
+  <div class="kv"><span>Pfad</span><strong class="small"><code>{{ config_description.DATABASE_PATH }}</code></strong></div>
+  <div class="kv"><span>Integrit&auml;t</span><strong class="{{ 'ok' if integrity == 'ok' else 'err' }}">{{ integrity }}</strong></div>
+  {% for table, count in database_counts.items() %}
+    <div class="kv"><span>Zeilen in <code>{{ table }}</code></span><strong>{{ count }}</strong></div>
+  {% endfor %}
+  <div class="kv"><span>Log-Datei</span><strong class="small"><code>{{ config_description.LOG_FILE }}</code></strong></div>
+  <p class="muted">
+    Backup: Anwendung stoppen und die Dateien <code>youtube_autoposter.db</code>,
+    <code>credentials/</code> sowie die Archiv-Ordner kopieren.
+  </p>
+</section>
+{% endblock %}

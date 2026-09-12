@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Protokoll &middot; {{ app_name }}{% endblock %}
+
+{% block content %}
+<section class="panel">
+  <div class="panel-head">
+    <div class="panel-title">
+      <h1>Protokoll</h1>
+      <span class="muted">
+        {{ logs|length }} Eintr&auml;ge &middot; Datei: <code>{{ log_file }}</code>
+        (rotierend, {{ settings.LOG_MAX_BYTES // 1048576 }} MB &times; {{ settings.LOG_BACKUP_COUNT }})
+      </span>
+    </div>
+    <div class="panel-tools">
+      <form method="get" class="search" action="{{ url_for('ui.logs_page') }}">
+        <select name="level">
+          <option value="">alle Level</option>
+          {% for lvl in ['DEBUG', 'INFO', 'WARNING', 'ERROR'] %}
+            <option value="{{ lvl }}" {{ 'selected' if level == lvl }}>{{ lvl }}</option>
+          {% endfor %}
+        </select>
+        <select name="limit">
+          {% for l in [50, 200, 500, 1000] %}
+            <option value="{{ l }}" {{ 'selected' if limit == l }}>{{ l }} Zeilen</option>
+          {% endfor %}
+        </select>
+        <button class="btn btn-ghost" type="submit">Filtern</button>
+      </form>
+    </div>
+  </div>
+
+  {% if logs %}
+  <ul class="loglist loglist-full">
+    {% for entry in logs %}
+      <li class="log-{{ entry.level|lower }}">
+        <span class="log-ts">{{ now_local(entry.ts) }}</span>
+        <span class="log-level">{{ entry.level }}</span>
+        <span class="log-episode">{{ entry.episode_id or '' }}</span>
+        <span class="log-action">{{ entry.action or '' }}</span>
+        <span class="log-msg">{{ entry.message }}</span>
+      </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+    <div class="empty"><h2>Keine Eintr&auml;ge</h2></div>
+  {% endif %}
+</section>
+{% endblock %}

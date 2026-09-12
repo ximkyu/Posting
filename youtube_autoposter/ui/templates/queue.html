@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Warteschlange &middot; {{ app_name }}{% endblock %}
+
+{% block content %}
+<section class="panel">
+  <div class="panel-head">
+    <div class="panel-title">
+      <h1>Upload-Warteschlange</h1>
+      <span class="muted">
+        {{ records|length }} Episode(n) warten &middot;
+        gleichzeitige Uploads: <strong>{{ settings.MAX_CONCURRENT_UPLOADS }}</strong> &middot;
+        Auto-Upload: <strong>{{ 'an' if settings.AUTO_UPLOAD and not paused else 'aus/pausiert' }}</strong>
+      </span>
+    </div>
+    <div class="panel-tools">
+      <form method="post" action="{{ url_for('ui.action_upload') }}" class="inline" data-form>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button class="btn btn-primary" type="submit">UPLOAD AUSF&Uuml;HREN</button>
+      </form>
+      {% if paused %}
+        <form method="post" action="{{ url_for('ui.action_pause') }}" class="inline" data-form>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="paused" value="0">
+          <button class="btn btn-primary" type="submit">FORTSETZEN</button>
+        </form>
+      {% else %}
+        <form method="post" action="{{ url_for('ui.action_pause') }}" class="inline" data-form>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="paused" value="1">
+          <button class="btn btn-ghost" type="submit">PAUSIEREN</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="worker-state">
+    <div class="kv"><span>Worker</span><strong class="{{ 'ok' if worker_state.running else 'muted' }}">{{ 'l&auml;uft' if worker_state.running else 'gestoppt' }}</strong></div>
+    <div class="kv"><span>Aktuelle Episode</span><strong>{{ worker_state.current_episode or '-' }}</strong></div>
+    <div class="kv"><span>Verarbeitet</span><strong>{{ worker_state.processed_total }}</strong></div>
+    <div class="kv"><span>Erfolgreich</span><strong class="ok">{{ worker_state.success_total }}</strong></div>
+    <div class="kv"><span>Fehlgeschlagen</span><strong class="err">{{ worker_state.failed_total }}</strong></div>
+    <div class="kv"><span>Letzte Meldung</span><strong class="small">{{ worker_state.last_message or '-' }}</strong></div>
+  </div>
+
+  {% if records %}
+  <table class="table">
+    <thead><tr><th>Position</th><th>Episode</th><th>Titel</th><th>Status</th><th>Gr&ouml;&szlig;e</th><th>Aktion</th></tr></thead>
+    <tbody>
+    {% for record in records %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td><code>{{ record.episode_id }}</code></td>
+        <td>{{ record.display_title }}</td>
+        <td><span class="status status-{{ record.status|lower }}">{{ record.status_label }}</span></td>
+        <td>{{ record.size_text }}</td>
+        <td>
+          <a class="btn btn-ghost btn-sm" href="{{ url_for('ui.video_detail', video_id=record.id) }}">Details</a>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <div class="empty"><h2>Queue ist leer</h2>
+      <p>Neue Dateien in <code>{{ settings.READY_FOLDER }}</code> ablegen &mdash; der Watcher nimmt sie automatisch auf.</p>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,26 @@
+# ------------------------------------------------------------------
+# YouTube AutoPoster V1 - Runtime-Abhaengigkeiten
+# Python 3.11+ (empfohlen: 3.12)
+# Installation:  pip install -r requirements.txt
+# ------------------------------------------------------------------
+
+# Lokale Weboberflaeche (Dashboard)
+Flask>=3.0,<4.0
+
+# Offizielle Google API Client Libraries (YouTube Data API v3 + OAuth 2.0)
+google-api-python-client>=2.140
+google-auth>=2.30
+google-auth-oauthlib>=1.2
+google-auth-httplib2>=0.2
+httplib2>=0.22
+
+# Thumbnail-Pruefung (Format/Groesse/lesbar) - optional, wird
+# automatisch durch eine Header-Pruefung ersetzt, falls nicht vorhanden
+Pillow>=10.0
+
+# Watch-Folder: Datei-Events statt reinem Polling - optional,
+# die Anwendung funktioniert auch ohne (Polling-Fallback)
+watchdog>=4.0
+
+# Robuster WSGI-Server fuer Windows (statt Flask-Dev-Server)
+waitress>=3.0

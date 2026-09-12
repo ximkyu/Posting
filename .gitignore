@@ -1,0 +1,97 @@
+# ------------------------------------------------------------------
+# YouTube AutoPoster - .gitignore
+# WICHTIG: Niemals Credentials, Tokens, Datenbanken oder Videodateien
+# ins Repository committen.
+# ------------------------------------------------------------------
+
+# --- Secrets / OAuth (hart ausgeschlossen) -------------------------
+credentials/*
+!credentials/README.txt
+!credentials/.gitignore
+*.dpapi
+token.json
+token*.json
+client_secret*.json
+client_secrets*.json
+service_account*.json
+credentials.json
+secrets.*
+.env
+.env.*
+
+# --- Laufzeitdaten / Datenbank / Logs ------------------------------
+data/*
+!data/logs/
+!data/logs/.gitkeep
+# Protokolle gehoeren nicht ins Repository
+data/logs/*.log
+data/logs/*.log.*
+data/logs/*.tmp
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# --- Arbeitsordner (Videos, Thumbnails, Metadaten) -----------------
+folders/READY/*
+folders/PROCESSING/*
+folders/UPLOADED_PRIVATE/*
+folders/PUBLISHED/*
+folders/FAILED/*
+folders/SKIPPED/*
+!folders/**/.gitkeep
+
+# --- Medien-Dateien generell ---------------------------------------
+*.mp4
+*.mov
+*.mkv
+*.webm
+*.avi
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+!docs/img/*.png
+!youtube_autoposter/ui/static/*.png
+!youtube_autoposter/ui/static/*.ico
+!youtube_autoposter/ui/static/favicon.svg
+
+# --- Beispielpaket (klein, bewusst versioniert) ----------------------
+!examples/ready_example/example_video.mp4
+!examples/ready_example/example_video.jpg
+!examples/ready_example/example_video.json
+
+# --- Python ---------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+.coverage
+htmlcov/
+
+# --- Betriebssystem / Editor ---------------------------------------
+Thumbs.db
+desktop.ini
+.DS_Store
+*.lnk
+.idea/
+.vscode/
+*.swp
+*.bak
+*.tmp
+*.part
+*.crdownload

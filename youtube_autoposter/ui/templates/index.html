@@ -1,0 +1,303 @@
+{% extends "base.html" %}
+{% block title %}Dashboard &middot; {{ app_name }}{% endblock %}
+
+{% block content %}
+<section class="stat-grid">
+  <div class="stat stat-ready">
+    <span class="stat-label">Bereit</span>
+    <span class="stat-value" data-stat="ready">{{ stats.ready }}</span>
+    <span class="stat-hint">in READY/ &amp; Queue</span>
+  </div>
+  <div class="stat stat-running">
+    <span class="stat-label">Upload l&auml;uft</span>
+    <span class="stat-value" data-stat="uploading">{{ stats.uploading }}</span>
+    <span class="stat-hint" data-worker-hint>
+      {% if worker_state.current_episode %}gerade: {{ worker_state.current_episode }}{% else %}inaktiv{% endif %}
+    </span>
+  </div>
+  <div class="stat stat-private">
+    <span class="stat-label">Privat hochgeladen</span>
+    <span class="stat-value" data-stat="private">{{ stats.private }}</span>
+    <span class="stat-hint">bereit zur Ver&ouml;ffentlichung</span>
+  </div>
+  <div class="stat stat-publish">
+    <span class="stat-label">Zur Ver&ouml;ffentlichung bereit</span>
+    <span class="stat-value" data-stat="publish_ready">{{ stats.private }}</span>
+    <span class="stat-hint">nur per Button &ouml;ffentlich</span>
+  </div>
+  <div class="stat stat-published">
+    <span class="stat-label">Ver&ouml;ffentlicht</span>
+    <span class="stat-value" data-stat="published">{{ stats.published }}</span>
+    <span class="stat-hint">public auf YouTube</span>
+  </div>
+  <div class="stat stat-failed">
+    <span class="stat-label">Fehler</span>
+    <span class="stat-value" data-stat="failed">{{ stats.failed }}</span>
+    <span class="stat-hint">{{ stats.skipped }} Dublette(n) &uuml;bersprungen</span>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <div class="panel-title">
+      <h1>Episoden</h1>
+      <span class="muted">{{ records|length }} angezeigt &middot; {{ stats.total }} gesamt &middot; {{ human_size(stats.bytes_total) }}</span>
+    </div>
+    <div class="panel-tools">
+      <div class="tabs">
+        {% set tabs = [
+          ('all', 'Alle'),
+          ('ready', 'Bereit'),
+          ('running', 'L&auml;uft'),
+          ('private', 'Privat'),
+          ('published', 'Ver&ouml;ffentlicht'),
+          ('failed', 'Fehler'),
+          ('attention', 'Aktion n&ouml;tig'),
+        ] %}
+        {% for key, label in tabs %}
+          <a class="tab {{ 'active' if filter_name == key }}"
+             href="{{ url_for('ui.dashboard', filter=key, q=search or none) }}">{{ label }}</a>
+        {% endfor %}
+      </div>
+      <form method="get" class="search" action="{{ url_for('ui.dashboard') }}">
+        <input type="hidden" name="filter" value="{{ filter_name }}">
+        <input type="search" name="q" value="{{ search or '' }}" placeholder="Suche: Titel, Episode, Video-ID">
+        <button type="submit" class="btn btn-ghost">Suchen</button>
+      </form>
+      {% if paused %}
+        <form method="post" action="{{ url_for('ui.action_pause') }}" class="inline" data-form>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="paused" value="0">
+          <button type="submit" class="btn btn-primary">FORTSETZEN</button>
+        </form>
+      {% else %}
+        <form method="post" action="{{ url_for('ui.action_pause') }}" class="inline" data-form>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="paused" value="1">
+          <button type="submit" class="btn btn-ghost">PAUSIEREN</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if not auth.connected %}
+    <div class="banner banner-warn">
+      <strong>YouTube-Verbindung fehlt.</strong>
+      {{ auth.message }}
+      <a class="btn btn-primary btn-sm" href="{{ url_for('ui.auth_start') }}">Google-/YouTube-Konto einmalig verbinden</a>
+      <a class="btn btn-ghost btn-sm" href="{{ url_for('ui.setup_page') }}">Anleitung &ouml;ffnen</a>
+    </div>
+  {% elif auth.state.value == 'EXPIRED' %}
+    <div class="banner banner-info">
+      <strong>Token abgelaufen.</strong> {{ auth.message }}
+      <form method="post" action="{{ url_for('ui.auth_test') }}" class="inline" data-form>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button class="btn btn-ghost btn-sm" type="submit">Verbindung testen</button>
+      </form>
+    </div>
+  {% endif %}
+
+  {% if watcher_state and watcher_state.unstable %}
+    <div class="banner banner-info">
+      <strong>Dateien werden noch kopiert:</strong>
+      {% for item in watcher_state.unstable %}
+        <span class="chip">{{ item.episode_id }} &middot; {{ item.reason }}</span>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {% if recovery and (recovery.interrupted or recovery.orphans or recovery.missing_files) %}
+    <div class="banner banner-warn">
+      <strong>Hinweis vom letzten Neustart:</strong>
+      {% if recovery.interrupted %}
+        Unterbrochene Uploads: {% for ep in recovery.interrupted %}<span class="chip">{{ ep }}</span>{% endfor %}
+        Kein automatischer Re-Upload &mdash; bitte pro Episode pr&uuml;fen.
+      {% endif %}
+      {% if recovery.missing_files %}
+        Fehlende Dateien: {% for ep in recovery.missing_files %}<span class="chip">{{ ep }}</span>{% endfor %}
+      {% endif %}
+      {% if recovery.orphans %}
+        Dateien ohne Zuordnung in PROCESSING/: {% for path in recovery.orphans[:5] %}<span class="chip">{{ path }}</span>{% endfor %}
+      {% endif %}
+    </div>
+  {% endif %}
+
+  {% if records %}
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th class="col-thumb">Thumbnail</th>
+          <th>Titel / Episode</th>
+          <th>Status</th>
+          <th>Technik</th>
+          <th>Upload-Datum</th>
+          <th>YouTube</th>
+          <th class="col-actions">Aktionen</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for record in records %}
+        <tr class="row row-{{ record.status|lower }}" data-status="{{ record.status }}">
+          <td class="col-thumb">
+            <img class="thumb" src="{{ url_for('ui.thumbnail', video_id=record.id) }}"
+                 alt="Thumbnail {{ record.display_title }}" loading="lazy">
+          </td>
+          <td>
+            <div class="title">
+              <a href="{{ url_for('ui.video_detail', video_id=record.id) }}">{{ record.display_title }}</a>
+            </div>
+            <div class="muted small">
+              Episode <code>{{ record.episode_id }}</code>
+              {% if record.file_size %} &middot; {{ record.size_text }}{% endif %}
+              {% if record.retry_count %} &middot; Versuch {{ record.retry_count + 1 }}{% endif %}
+            </div>
+            {% if record.error_message %}
+              <div class="error-text">{{ record.error_message }}</div>
+            {% endif %}
+          </td>
+          <td>
+            <span class="status status-{{ record.status|lower }}">{{ record.status_label }}</span>
+            {% if record.status in publishable %}
+              <div class="small muted">Privat &ndash; bereit zur Ver&ouml;ffentlichung</div>
+            {% endif %}
+            {% if record.status == 'UPLOADING' and record.progress_percent %}
+              <div class="progress"><span style="width: {{ record.progress_percent }}%"></span></div>
+              <div class="small muted">{{ record.progress_percent }}&nbsp;%</div>
+            {% endif %}
+          </td>
+          <td class="small">
+            {% if record.width and record.height %}
+              <div>{{ record.resolution_text }}</div>
+              <div>{{ record.duration_text }}</div>
+              <div class="muted">{{ record.codec_text }}</div>
+            {% else %}
+              <div class="muted">keine technischen Daten</div>
+            {% endif %}
+          </td>
+          <td class="small">
+            {% if record.upload_completed_at %}
+              <div>{{ record.upload_completed_at_local }}</div>
+            {% else %}
+              <div class="muted">{{ record.created_at_local }}</div>
+            {% endif %}
+            {% if record.published_at %}
+              <div class="muted">public seit {{ record.published_at_local }}</div>
+            {% endif %}
+          </td>
+          <td class="small">
+            {% if record.youtube_video_id %}
+              <code class="video-id">{{ record.youtube_video_id }}</code>
+              <a class="btn btn-ghost btn-sm" href="{{ record.youtube_watch_url }}" target="_blank" rel="noopener">YouTube &ouml;ffnen</a>
+            {% else %}
+              <span class="muted">&ndash;</span>
+            {% endif %}
+          </td>
+          <td class="col-actions">
+            <div class="actions">
+              {% if record.can_publish %}
+                <button type="button"
+                        class="btn btn-publish"
+                        data-publish
+                        data-video-id="{{ record.id }}"
+                        data-title="{{ record.display_title }}"
+                        data-video-yt="{{ record.youtube_video_id }}"
+                        data-expected-status="{{ record.status }}">
+                  VER&Ouml;FFENTLICHEN
+                </button>
+              {% elif record.is_published %}
+                <span class="btn btn-published" aria-disabled="true">VER&Ouml;FFENTLICHT &#10003;</span>
+              {% endif %}
+
+              {% if record.status == 'INTERRUPTED' %}
+                <form method="post" action="{{ url_for('ui.video_recover', video_id=record.id) }}" class="inline" data-form>
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <button class="btn btn-primary btn-sm" type="submit">Auf YouTube pr&uuml;fen</button>
+                </form>
+              {% endif %}
+
+              {% if record.can_retry %}
+                <form method="post" action="{{ url_for('ui.video_retry', video_id=record.id) }}" class="inline" data-form>
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <button class="btn btn-warn btn-sm" type="submit">Erneut versuchen</button>
+                </form>
+              {% endif %}
+
+              <a class="btn btn-ghost btn-sm" href="{{ url_for('ui.video_detail', video_id=record.id) }}">Details</a>
+
+              {% if record.youtube_video_id %}
+                <form method="post" action="{{ url_for('ui.video_archive', video_id=record.id) }}" class="inline" data-form>
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <button class="btn btn-ghost btn-sm" type="submit">Archivieren</button>
+                </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <div class="empty">
+      <h2>Keine Episoden gefunden</h2>
+      <p>
+        Lege ein fertiges Video zusammen mit seiner JSON-Datei in den READY-Ordner:
+      </p>
+      <pre><code>{{ settings.READY_FOLDER }}\
+    video_001.mp4
+    video_001.json
+    video_001.jpg   (optional)</code></pre>
+      <p>
+        Der Watcher erkennt die Dateien automatisch (Intervall {{ settings.SCAN_INTERVAL_SECONDS }}&nbsp;s,
+        Stabilit&auml;tspr&uuml;fung {{ settings.FILE_STABILITY_SECONDS }}&nbsp;s).
+      </p>
+      <form method="post" action="{{ url_for('ui.action_scan') }}" class="inline" data-form>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button class="btn btn-primary" type="submit">JETZT SCANNEN</button>
+      </form>
+    </div>
+  {% endif %}
+</section>
+
+<section class="panel panel-split">
+  <div>
+    <h2>Plattform</h2>
+    {% for info in platform_infos %}
+      <div class="kv">
+        <span>{{ info.label }}</span>
+        <strong class="{{ 'ok' if info.available else 'err' }}">{{ 'bereit' if info.available else 'nicht bereit' }}</strong>
+      </div>
+      <div class="muted small">{{ info.message }}</div>
+      {% if info.quota_today %}
+        <div class="kv small">
+          <span>Uploads heute</span>
+          <strong>{{ info.quota_today.get('uploads', 0) }} / {{ info.quota_today.get('upload_limit_per_day', 100) }}</strong>
+        </div>
+        <div class="kv small">
+          <span>Quota-Einheiten heute</span>
+          <strong>{{ info.quota_today.get('units', 0) }}</strong>
+        </div>
+      {% endif %}
+    {% endfor %}
+  </div>
+  <div>
+    <h2>Automatik</h2>
+    <div class="kv"><span>Watch-Folder</span>
+      <strong class="{{ 'ok' if watcher_state.running else 'muted' }}">{{ 'aktiv' if watcher_state.running else 'inaktiv' }}</strong>
+    </div>
+    <div class="kv"><span>Dateisystem-Events (watchdog)</span>
+      <strong>{{ 'ja' if watcher_state.watchdog else 'nein (Polling)' }}</strong>
+    </div>
+    <div class="kv"><span>Letzter Scan</span><strong>{{ watcher_state.last_scan_at or '-' }}</strong></div>
+    <div class="kv"><span>Auto-Upload</span>
+      <strong class="{{ 'ok' if settings.AUTO_UPLOAD and not paused else 'warn' }}">{{ 'an' if settings.AUTO_UPLOAD and not paused else 'aus/pausiert' }}</strong>
+    </div>
+    <div class="kv"><span>Gleichzeitige Uploads</span><strong>{{ settings.MAX_CONCURRENT_UPLOADS }}</strong></div>
+    <div class="kv"><span>ffprobe/ffmpeg</span>
+      <strong class="{{ 'ok' if probe[0] else 'warn' }}">{{ probe[1] }}</strong>
+    </div>
+    <div class="kv"><span>Standard-Privacy</span><strong class="ok">{{ settings.DEFAULT_PRIVACY_STATUS }} (erzwungen)</strong></div>
+  </div>
+</section>
+{% endblock %}
