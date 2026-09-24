@@ -33,6 +33,7 @@ from .core.context import AppContext, bootstrap
 from .core.dry_run import run_dry_run
 from .core.models import VideoRecord
 from .errors import AutoPosterError, StateError
+from .utils.demo_episode import DEMO_NAME, create_demo_episode
 from .utils.files import format_local, human_size
 from .utils.logging_utils import get_logger
 from .utils.media import probe_available
@@ -85,6 +86,7 @@ def build_parser() -> argparse.ArgumentParser:
             "archive",
             "logs",
             "init",
+            "demo",
             "config",
             "reset",
         ],
@@ -98,7 +100,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--yes", action="store_true", help="Rueckfragen ueberspringen (publish/retry/reset)")
     parser.add_argument("--follow", action="store_true", help="Protokoll fortlaufend anzeigen")
     parser.add_argument("--write", action="store_true", help="config.json mit den aktuellen Werten schreiben")
-    parser.add_argument("--target", help="Zielordner fuer 'archive' (READY, FAILED, UPLOADED_PRIVATE, ...)")
+    parser.add_argument("--target", help="Zielordner fuer 'archive' (READY, FAILED, ...) bzw. 'demo'")
+    parser.add_argument("--demo", action="store_true", help="init: zusaetzlich eine Demo-Episode in READY anlegen")
+    parser.add_argument("--name", help="demo: Episode-Name (Standard: video_001)")
+    parser.add_argument("--generate", action="store_true", help="demo: Testvideo mit ffmpeg erzeugen")
+    parser.add_argument("--seconds", type=int, help="demo: Laenge des erzeugten Testvideos")
+    parser.add_argument("--overwrite", action="store_true", help="demo: vorhandene Demo-Dateien ersetzen")
     parser.add_argument("--unlisted", action="store_true", help="publish: 'unlisted' statt 'public'")
     return parser
 
@@ -545,6 +552,37 @@ def cmd_init(ctx: AppContext, args: argparse.Namespace) -> int:
         _print(f"credentials.json: FEHLT -> {credentials}")
         _print("  Google Cloud Console -> OAuth-Client (Typ: Desktop-App) -> JSON herunterladen")
         _print("  und als credentials/credentials.json ablegen. Anleitung: README.md")
+
+    if getattr(args, "demo", False):
+        _print("")
+        _print("DEMO-EPISODE (reproduzierbar, keine grossen Dateien)")
+        for pfad in create_demo_episode(ctx.settings, logger=ctx.logger):
+            _print(f"  {pfad}")
+        _print("  Weiter mit: python app.py scan  (oder 'JETZT SCANNEN' im Dashboard)")
+        _print("  Hinweis: Ohne credentials.json bleibt die Episode PAUSIERT - es wird nichts hochgeladen.")
+    return 0
+
+
+def cmd_demo(ctx: AppContext, args: argparse.Namespace) -> int:
+    """Demo-Episode (mp4 + json + jpg) im READY-Ordner anlegen."""
+
+    name = getattr(args, "name", None) or DEMO_NAME
+    pfade = create_demo_episode(
+        ctx.settings,
+        name=name,
+        target=getattr(args, "target", None),
+        generate=bool(getattr(args, "generate", False)),
+        seconds=int(getattr(args, "seconds", 0) or 5),
+        overwrite=bool(getattr(args, "overwrite", False)),
+        logger=ctx.logger,
+    )
+    _print(f"Demo-Episode '{name}' liegt bereit:")
+    for pfad in pfade:
+        groesse = human_size(pfad.stat().st_size) if pfad.exists() else "-"
+        _print(f"  {pfad}  ({groesse})")
+    _print("")
+    _print("Weiter mit: python app.py scan   (oder 'JETZT SCANNEN' im Dashboard)")
+    _print("Jeder Upload bleibt PRIVAT; ohne credentials.json wird nichts hochgeladen.")
     return 0
 
 
@@ -595,6 +633,7 @@ COMMANDS = {
     "archive": cmd_archive,
     "logs": cmd_logs,
     "init": cmd_init,
+    "demo": cmd_demo,
     "config": cmd_config,
     "reset": cmd_reset,
 }

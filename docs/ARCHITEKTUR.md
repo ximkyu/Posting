@@ -196,7 +196,7 @@ Alle externen Abhängigkeiten sind austauschbar:
 - `tests/conftest.py` baut je Test ein **eigenes** Projektverzeichnis mit eigener
   `config.json` (`BASE_DIR`-Verankerung), eigener Datenbank und eigenen Ordnern:
   Die Tests fassen niemals das echte `folders\` oder `data\` an.
-- 362 Tests, komplett offline (`python -m pytest -q`, ca. 14 s).
+- 381 Tests, komplett offline (`python -m pytest -q`, ca. 15 s).
 - `tools/e2e_mock_demo.py` spielt denselben Ablauf als nachvollziehbares Skript durch
   (READY → Upload privat → Dashboard → Absturz-Wiederanlauf → Dublette → Veröffentlichen
   → Archiv + `upload_result.json`) und beendet sich mit Exit-Code 0, wenn alle 55

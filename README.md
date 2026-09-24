@@ -79,46 +79,148 @@ FFmpeg installieren (nur falls gewünscht): <https://ffmpeg.org/download.html> �
 
 ## 2. Installation
 
-**Variante A – Doppelklick (Windows, empfohlen)**
+### 2.1 Standardweg (Windows) – 10 Schritte
 
-1. Projektordner z. B. nach `C:\YouTubeAutoPoster` kopieren/klonen.
-2. `setup.bat` doppelklicken.
-   Das Skript legt `.venv` an, installiert die Abhängigkeiten aus `requirements.txt`,
-   erzeugt die Ordnerstruktur, initialisiert die SQLite-Datenbank und schreibt
-   `config.json`.
-3. `start.bat` doppelklicken → das Dashboard öffnet sich im Browser:
-   **<http://127.0.0.1:8765>**
-   (Zum Start im Hintergrund: `start_minimized.vbs`.)
-
-**Variante B – manuell (Windows PowerShell / CMD)**
+**1. Repository klonen**
 
 ```bat
+git clone -b arena/01a09550-posting https://github.com/ximkyu/Posting.git C:\YouTubeAutoPoster
 cd C:\YouTubeAutoPoster
+```
+
+**2. Python-Version prüfen** – benötigt wird **Python 3.11 oder neuer** (empfohlen 3.12),
+64 Bit. Bei der Installation „**Add python.exe to PATH**" anhaken.
+
+```bat
+py -3 --version
+```
+
+**3. Virtuelle Umgebung erstellen**
+
+```bat
 py -3 -m venv .venv
+```
+
+**4. `requirements.txt` installieren**
+
+```bat
 .venv\Scripts\activate.bat
 python -m pip install --upgrade pip
 pip install -r requirements.txt
-python app.py init
-python app.py --dry-run
-python app.py
+REM optional für die Tests:
+pip install -r requirements-dev.txt
 ```
 
-**Variante C – Linux/macOS**
+**5. `credentials.json` aus der Google Cloud ablegen** →
+`credentials\credentials.json` (Anleitung: [Abschnitt 3](#3-google-cloud-einrichten-einmalig-10-minuten)).
+Ohne diese Datei startet die Anwendung trotzdem – sie bleibt dann sicher im Status
+**PAUSIERT** und lädt nichts hoch.
+
+**6. Initialisieren** (Ordner + Datenbank + `config.json`)
+
+```bat
+python app.py init
+```
+
+**7. Starten**
+
+```bat
+start.bat
+REM oder:
+python app.py run --host 127.0.0.1 --port 8765
+```
+
+**8. Setup-Seite öffnen** → <http://127.0.0.1:8765/setup>
+
+**9. Google-/YouTube-Konto verbinden** → Button
+**„Google-/YouTube-Konto einmalig verbinden"** → Konto wählen →
+*„Google hat diese App nicht überprüft"* → **Erweitert** → **Weiter zu YouTube AutoPoster
+(nicht sicher)** → **Zulassen** → danach **„Verbindung testen"**.
+
+**10. Privaten Testupload durchführen**
+
+```bat
+python app.py init --demo        &:: Demo-Episode nach folders\READY legen (einmalig)
+python app.py scan               &:: erkennen
+python app.py status             &:: kontrollieren
+```
+
+Das Demo-Video wird automatisch **privat** hochgeladen (`UPLOADED_PRIVATE`).
+Veröffentlicht wird es erst, wenn du im Dashboard auf **VERÖFFENTLICHEN** klickst.
+Kontrolle: <http://127.0.0.1:8765/health> → `"youtube_connected": true`.
+
+### 2.2 Kurzform (Doppelklick)
+
+| Datei | Wirkung |
+|---|---|
+| `setup.bat` | `.venv` anlegen, Abhängigkeiten installieren, Ordner + Datenbank + `config.json` erzeugen (= Schritte 3, 4, 6) |
+| `start.bat` | starten und Browser öffnen (= Schritt 7) |
+| `start_hidden.bat` | dasselbe minimiert im Hintergrund |
+| `start_minimized.vbs` | Start ohne Konsolenfenster im Vordergrund |
+| `run_tests.bat` | alle Tests ausführen |
+
+Beenden: im Konsolenfenster **STRG+C** (oder Fenster schließen bzw. Task-Manager →
+`python.exe` beenden).
+
+### 2.3 Linux / macOS
 
 ```bash
+git clone -b arena/01a09550-posting https://github.com/ximkyu/Posting.git ~/YouTubeAutoPoster
 cd ~/YouTubeAutoPoster
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -U pip && pip install -r requirements.txt
-./setup.sh          # optional: prüft die Umgebung
-python app.py init
-python app.py --dry-run
-./start.sh
+python app.py init --demo
+./start.sh                       # bzw. python app.py run
 ```
 
-Installierte Pakete (`requirements.txt`): `flask`, `waitress`, `watchdog`,
-`google-api-python-client`, `google-auth`, `google-auth-oauthlib`, `google-auth-httplib2`,
-`Pillow` (Thumbnail-Prüfung). Entwicklung/Tests: `requirements-dev.txt` (pytest).
+### 2.4 Demo-/Testdateien (reproduzierbar, ohne große Binärdateien)
+
+```bat
+python app.py init --demo                      &:: Struktur + Demo-Episode video_001
+python app.py demo                             &:: nur die Demo-Episode
+python app.py demo --name folge_007            &:: eigener Name
+python app.py demo --generate --seconds 8      &:: echtes Testvideo mit ffmpeg erzeugen
+python app.py demo --overwrite                 &:: vorhandene Demo-Dateien ersetzen
+python tools\create_sample_episode.py --name video_025   &:: dasselbe als Skript
+```
+
+Die Demo-Episode besteht immer aus `mp4` + `json` + `jpg` und wird in dieser Reihenfolge
+erzeugt: (1) Kopie aus `examples\ready_example\` (im Repository, zusammen < 150 KB),
+(2) sonst ein mit **ffmpeg** erzeugtes Testvideo, (3) sonst eine synthetisierte
+Platzhalterdatei (MP4-Header + 1280×720-JPEG über Pillow). Vorhandene Dateien werden
+nie überschrieben (außer mit `--overwrite`) und nie gelöscht.
+
+### 2.5 Health-Endpunkt
+
+```
+GET http://127.0.0.1:8765/health
+```
+
+```json
+{
+  "app": "YouTube AutoPoster",
+  "version": "1.0.0",
+  "status": "ok",
+  "dry_run": false,
+  "youtube_connected": false,
+  "database": { "videos": 1, "uploads": 0, "logs": 12, "settings": 4 }
+}
+```
+
+`youtube_connected` ist **ohne** OAuth erwartungsgemäß `false`. Der Endpunkt liest nur
+die lokale Datenbank – er kostet **keine** YouTube-Quota. Weitere Prüf-Endpunkte:
+`/api/status` (ausführlich, inkl. Auth-Zustand, Quota, Konfiguration), `/api/videos`,
+`/version`.
+
+### 2.6 Installierte Pakete
+
+`requirements.txt`: `flask`, `waitress`, `watchdog`, `google-api-python-client`,
+`google-auth`, `google-auth-oauthlib`, `google-auth-httplib2`, `httplib2`, `Pillow`.
+Unter Windows zusätzlich `pywin32` (DPAPI-Verschlüsselung des Tokens) – auf Linux/macOS
+entfällt es automatisch. Entwicklung/Tests: `requirements-dev.txt` (`pytest`,
+`pytest-cov`). **FFmpeg ist keine Python-Abhängigkeit** und bleibt optional
+(Abschnitt 1 und `docs\FEHLERBEHEBUNG.md`, Punkt 8).
 
 ## 3. Google Cloud einrichten (einmalig, ~10 Minuten)
 
@@ -203,6 +305,12 @@ nur mit `access_type=offline` + `prompt=consent` erteilt – deshalb siehst du d
 Consent-Bildschirm jedes Mal erneut.
 
 **Nie gespeichert:** Google-Passwort, 2FA-Codes, Access-Token in `config.json`.
+
+**Kein API-Key als Ersatz:** Ein reiner API-Key reicht für Uploads **nicht** aus und wird
+von dieser Anwendung bewusst nicht verwendet. Erforderlich ist ausschließlich
+**OAuth 2.0** mit einem **Desktop-App**-Client (`credentials\credentials.json`) und dem
+Scope `https://www.googleapis.com/auth/youtube`. Benötigte Google-API:
+**YouTube Data API v3** (aktiviert im Cloud-Projekt).
 
 ## 5. Der READY-Ordner
 
@@ -463,12 +571,14 @@ python app.py [globale Optionen] <befehl> [argumente]
 | `recover <episode>` | unterbrochenen Upload auf YouTube suchen |
 | `archive <episode> [--target ORDNER]` | Dateien manuell verschieben |
 | `logs [--limit N] [--follow]` | Protokoll anzeigen |
-| `init` | Ordner, Datenbank, `config.json` anlegen |
+| `init [--demo]` | Ordner, Datenbank, `config.json` anlegen (mit `--demo` zusätzlich eine Demo-Episode) |
+| `demo [--name N] [--generate] [--seconds S] [--overwrite] [--target PFAD]` | Demo-Episode (mp4+json+jpg) im READY-Ordner anlegen |
 | `config [--write]` | Konfiguration anzeigen/schreiben |
 | `reset [--yes]` | Fehler/Unterbrochen zurück in die Queue |
 
 Globale Optionen: `--config PFAD`, `--host`, `--port`, `--log-level`,
 `--dry-run`, `--no-browser`, `--no-watch`, `--no-worker`, `--quiet`.
+Hilfe zu jedem Befehl: `python app.py --help`.
 
 ## 12. Konfiguration
 
@@ -553,7 +663,7 @@ run_tests.bat            &:: Windows
 .venv\Scripts\activate.bat && python -m pytest -q
 ```
 
-362 Tests, **alle ohne Netzwerk** und ohne echtes YouTube-Konto:
+381 Tests, **alle ohne Netzwerk** und ohne echtes YouTube-Konto:
 
 - JSON-Parser (Pflichtfelder, Limits, Aliase, ungültige Werte, `privacy_status`-Override)
 - SHA-256/Dubletten, atomares Verschieben, Integritätsprüfung, Stabilitätsprüfung
@@ -573,6 +683,9 @@ run_tests.bat            &:: Windows
 - Beispiel-Episode in `examples/ready_example/` und Portabilität der Konfiguration
 - Archiv-Unterordner, `upload_result.json`, Dubletten, Wiederanlauf, Idempotenz des
   Veröffentlichen-Buttons
+- Demo-Episode (`init --demo`, `demo`, `tools\create_sample_episode.py`): gültige
+  Metadaten, idempotent, Fallback ohne `examples/` und ohne ffmpeg, kompletter
+  Upload-Durchlauf bis `UPLOADED_PRIVATE`
 
 **End-to-End-Durchlauf mit simulierter YouTube-API** (zeigt den kompletten Ablauf
 inklusive Dashboard, Absturz-Wiederanlauf, Dublette und Veröffentlichen – ohne Netzwerk,
@@ -628,11 +741,12 @@ Posting\
 ├─ pytest.ini                 Test-Konfiguration (offline, testpaths=tests)
 ├─ requirements.txt           Laufzeit-Abhängigkeiten
 ├─ requirements-dev.txt       pytest (Entwicklung)
-├─ credentials\               credentials.json + token.json (durch .gitignore geschützt)
+├─ credentials\               .gitkeep + README.txt; hier liegen NUR lokal
+│                             credentials.json / token.json (nie in Git)
 ├─ data\                      youtube_autoposter.db, logs\app.log
 ├─ folders\                   READY, PROCESSING, UPLOADED_PRIVATE, PUBLISHED, FAILED, SKIPPED
 ├─ examples\ready_example\    lauffähige Beispiel-Episode (mp4 + json + jpg)
-├─ tools\create_sample_episode.py   Beispiel in READY kopieren / Testvideo erzeugen
+├─ tools\create_sample_episode.py   Demo-Episode anlegen (nutzt utils\demo_episode.py)
 ├─ tools\e2e_mock_demo.py     kompletter Durchlauf mit simulierter YouTube-API
 ├─ docs\                      JSON-Referenz, Google-Cloud-Anleitung, Architektur, Fehlerbehebung
 ├─ tests\                     362 Offline-Tests
@@ -651,7 +765,8 @@ Posting\
    ├─ scanner\folder_scanner.py   READY-Erkennung + Stabilität
    ├─ scheduler\watcher.py    Watcher (watchdog) + serieller Upload-Worker
    ├─ ui\                     routes.py, templates\, static\ (Dashboard)
-   └─ utils\                  files.py, media.py, secure_store.py, validation.py, logging_utils.py
+   └─ utils\                  files.py, media.py, secure_store.py, validation.py,
+                             logging_utils.py, demo_episode.py (Demo-Episode)
 ```
 
 ## 17. Datenbank, Ergebnisdateien & Sicherung
